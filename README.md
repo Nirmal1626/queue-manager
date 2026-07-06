@@ -15,30 +15,35 @@ A full-stack queue management system for managers to create queues, issue tokens
 
 ## Tech Stack
 
-- **Backend:** Node.js, Express, SQLite (built-in `node:sqlite`)
+- **Backend:** Node.js, Express, Turso/libSQL (SQLite-compatible cloud DB)
 - **Frontend:** React, Vite, React Router, Recharts, Lucide icons
+- **Deployment:** Vercel (frontend + serverless API)
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
-- Node.js 22+ (uses built-in SQLite module)
+- Node.js 18+
 
-### 1. Start the backend
+### 1. Install dependencies
+
+```bash
+npm run install:all
+```
+
+### 2. Start the backend
 
 ```bash
 cd backend
-npm install
 npm run dev
 ```
 
-API runs at `http://localhost:3001`
+API runs at `http://localhost:3001` (uses a local SQLite file automatically)
 
-### 2. Start the frontend
+### 3. Start the frontend
 
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
@@ -49,6 +54,63 @@ App runs at `http://localhost:5173`
 | Username | Password  |
 |----------|-----------|
 | `admin`  | `admin123` |
+
+---
+
+## Deploy to Vercel
+
+Vercel cannot persist a local SQLite file — you need a free [Turso](https://turso.tech) database for production.
+
+### Step 1: Create a Turso database
+
+1. Sign up at [turso.tech](https://turso.tech)
+2. Install the Turso CLI and create a database:
+
+```bash
+turso db create queueflow
+turso db show queueflow --url
+turso db tokens create queueflow
+```
+
+Save the **Database URL** and **Auth Token**.
+
+### Step 2: Push to GitHub
+
+```bash
+git init
+git add .
+git commit -m "Queue management app"
+git remote add origin https://github.com/YOUR_USERNAME/queue-manager.git
+git push -u origin main
+```
+
+### Step 3: Deploy on Vercel
+
+1. Go to [vercel.com](https://vercel.com) → **Add New Project**
+2. Import your GitHub repository
+3. Set the **Root Directory** to `queue-manager` (if the repo root is the parent folder, use `.` instead)
+4. Vercel auto-detects settings from `vercel.json` — no changes needed
+5. Add these **Environment Variables**:
+
+| Variable | Value |
+|----------|-------|
+| `TURSO_DATABASE_URL` | `libsql://your-db-name.turso.io` |
+| `TURSO_AUTH_TOKEN` | Your Turso auth token |
+| `JWT_SECRET` | A long random secret string |
+
+6. Click **Deploy**
+
+Your app will be live at `https://your-project.vercel.app`
+
+### Step 4: Verify
+
+- Open your Vercel URL
+- Login with `admin` / `admin123`
+- Create a queue and add tokens
+
+> The default admin user is seeded automatically on first API request when the database is empty.
+
+---
 
 ## API Endpoints
 
@@ -65,3 +127,14 @@ App runs at `http://localhost:5173`
 | POST | `/api/queues/:id/serve-next` | Serve top token |
 | POST | `/api/queues/:id/tokens/:tokenId/cancel` | Cancel a token |
 | GET | `/api/analytics` | Dashboard analytics |
+
+## Project Structure
+
+```
+queue-manager/
+├── api/index.js          # Vercel serverless entry point
+├── backend/src/          # Express API
+├── frontend/             # React app
+├── vercel.json           # Vercel deployment config
+└── .env.example          # Environment variable template
+```
