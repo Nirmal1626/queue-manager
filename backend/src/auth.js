@@ -1,42 +1,37 @@
-import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import { dbGet } from '../db.js';
-import { generateToken } from '../auth.js';
+import jwt from 'jsonwebtoken';
 
-const router = Router();
+const JWT_SECRET =
+  process.env.JWT_SECRET || 'queue-manager-secret-key-change-in-production';
 
-router.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
-    }
-
-    const manager = await dbGet(
-      'SELECT * FROM managers WHERE username = ?',
-      [username]
-    );
-
-    if (!manager || !bcrypt.compareSync(password, manager.password_hash)) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const safeManager = {
+export function generateToken(manager) {
+  return jwt.sign(
+    {
       id: Number(manager.id),
       username: manager.username
+    },
+    JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+}
+
+export function authMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const token = header.split(' ')[1];
+    const payload = jwt.verify(token, JWT_SECRET);
+
+    req.manager = {
+      id: Number(payload.id),
+      username: payload.username
     };
 
-    const token = generateToken(safeManager);
-
-    return res.json({
-      token,
-      manager: safeManager
-    });
-  } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ error: 'Login failed' });
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
-});
-
-export default router;
+}
